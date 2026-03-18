@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
+import 'package:flame/game.dart' show FlameGame;
 import 'package:flutter/material.dart' show Canvas, Color, Colors, Paint, PaintingStyle, RRect, Radius, Rect, Offset, VoidCallback;
 import '../game/board.dart';
 import '../game/score_manager.dart';
@@ -11,7 +12,7 @@ typedef SwapCallback = void Function(int r1, int c1, int r2, int c2);
 typedef PowerCallback = void Function(String power, int r, int c);
 
 /// 棋盘 Flame 组件（包含交互逻辑）
-class BoardComponent extends PositionComponent with TapCallbacks {
+class BoardComponent extends PositionComponent with TapCallbacks, HasGameRef<FlameGame> {
   final Board board;
   final ScoreManager scoreManager;
   final SwapCallback onSwap;
@@ -23,6 +24,7 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   int? _selectedCol;
 
   String? _activePower; // 当前激活的道具
+  double _adaptiveTileSize = GameConstants.tileSize;
 
   BoardComponent({
     required this.board,
@@ -33,16 +35,25 @@ class BoardComponent extends PositionComponent with TapCallbacks {
 
   @override
   FutureOr<void> onLoad() async {
-    // 计算棋盘位置（居中）
-    final boardWidth = board.cols * GameConstants.tileSize + GameConstants.boardPadding * 2;
-    final boardHeight = board.rows * GameConstants.tileSize + GameConstants.boardPadding * 2;
+    // 使用实际屏幕尺寸居中棋盘（修复左右截断问题）
+    final screenW = gameRef.size.x;
+    final screenH = gameRef.size.y;
 
-    // 居中放置（假设屏幕宽度360，高度720）
+    // 自适应 tileSize：让棋盘宽度不超过屏幕，高度留出 HUD 和道具栏
+    final availableW = screenW - GameConstants.boardPadding * 2;
+    final availableH = screenH - 80 - 80 - GameConstants.boardPadding * 2; // 80 top HUD, 80 bottom bar
+    final adaptiveTileSize = (availableW / board.cols).clamp(
+        16.0, (availableH / board.rows).clamp(16.0, GameConstants.tileSize));
+
+    final boardWidth = board.cols * adaptiveTileSize + GameConstants.boardPadding * 2;
+    final boardHeight = board.rows * adaptiveTileSize + GameConstants.boardPadding * 2;
+
     position = Vector2(
-      (360 - boardWidth) / 2,
-      80, // HUD 占用顶部
+      (screenW - boardWidth) / 2,
+      80, // HUD 顶部占用
     );
     size = Vector2(boardWidth, boardHeight);
+    _adaptiveTileSize = adaptiveTileSize;
 
     // 初始化所有方块组件
     tileComponents = List.generate(
@@ -50,7 +61,9 @@ class BoardComponent extends PositionComponent with TapCallbacks {
       (r) => List.generate(board.cols, (c) {
         final tile = board.get(r, c);
         final pos = _getTilePosition(r, c);
-        final comp = TileComponent(tile: tile, row: r, col: c, position: pos);
+        final comp = TileComponent(
+            tile: tile, row: r, col: c, position: pos,
+            tileSize: _adaptiveTileSize);
         add(comp);
         return comp;
       }),
@@ -61,8 +74,8 @@ class BoardComponent extends PositionComponent with TapCallbacks {
 
   Vector2 _getTilePosition(int r, int c) {
     return Vector2(
-      GameConstants.boardPadding + c * GameConstants.tileSize + GameConstants.tileSize / 2,
-      GameConstants.boardPadding + r * GameConstants.tileSize + GameConstants.tileSize / 2,
+      GameConstants.boardPadding + c * _adaptiveTileSize + _adaptiveTileSize / 2,
+      GameConstants.boardPadding + r * _adaptiveTileSize + _adaptiveTileSize / 2,
     );
   }
 
@@ -177,28 +190,37 @@ class BoardComponent extends PositionComponent with TapCallbacks {
   }
 
   /// 下落动画
+  /// 修复：原来用 comp.tile != tile 引用比较不可靠，改为直接比较视觉位置与目标位置
+  /// 用 epsilon 避免浮点误差导致误判，同时加安全超时防止卡死
   void animateFall(VoidCallback onComplete) {
+    const epsilon = 2.0; // 位置误差容忍（px）
     int moving = 0;
     int done = 0;
 
     for (int r = 0; r < board.rows; r++) {
       for (int c = 0; c < board.cols; c++) {
-        final tile = board.get(r, c);
         final comp = tileComponents[r][c];
-        if (comp.tile != tile) {
-          final targetPos = _getTilePosition(r, c);
-          if (comp.position != targetPos) {
-            moving++;
-            comp.playFallAnimation(targetPos, () {
-              done++;
-              if (done == moving) onComplete();
-            });
-          }
+        final targetPos = _getTilePosition(r, c);
+        final dx = (comp.position.x - targetPos.x).abs();
+        final dy = (comp.position.y - targetPos.y).abs();
+        if (dx > epsilon || dy > epsilon) {
+          moving++;
+          comp.playFallAnimation(targetPos, () {
+            done++;
+            if (done >= moving) onComplete();
+          });
         }
       }
     }
 
-    if (moving == 0) onComplete();
+    if (moving == 0) {
+      onComplete();
+    } else {
+      // 安全超时：若动画回调 600ms 内未全部触发，强制继续（防止游戏卡死）
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (done < moving) onComplete();
+      });
+    }
   }
 
   /// 重排动画

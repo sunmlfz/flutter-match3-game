@@ -38,9 +38,10 @@ class TileComponent extends PositionComponent {
     required this.row,
     required this.col,
     required Vector2 position,
+    double tileSize = GameConstants.tileSize,
   }) : super(
           position: position,
-          size: Vector2.all(GameConstants.tileSize - GameConstants.tilePadding * 2),
+          size: Vector2.all(tileSize - GameConstants.tilePadding * 2),
           anchor: Anchor.center,
         );
 

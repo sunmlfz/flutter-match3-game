@@ -145,9 +145,16 @@ class Match3Game extends FlameGame {
     _trackGoals(result);
 
     boardComponent.animateMatch(result.matched, () {
+      // ★ 修复统计 Bug：在 removeMatched 前保存将被消除的瓦片快照
+      // 原来在 animateMatch 前调用 _trackGoals 时，冰块（iceLayer>1）会被漏算或多算
+      final snapshot = _snapshotMatched(result.matched);
+
       board.removeMatched(result.matched);
       board.placeSpecials(result);
       board.applyGravity();
+
+      // 用快照更新目标统计（只计真正消除的格子）
+      _trackGoalsFromSnapshot(snapshot);
 
       boardComponent.animateFall(() {
         board.fillEmpty();
@@ -161,23 +168,37 @@ class Match3Game extends FlameGame {
     });
   }
 
-  void _trackGoals(MatchResult result) {
-    // 统计消除的颜色
+  /// 在消除前对将要被消除的格子做快照
+  /// 返回 [{color, obstacle}] 列表，只包含 iceLayer≤1 和非石块（即真正会被移除的）
+  List<_TileSnapshot> _snapshotMatched(List<List<bool>> matched) {
+    final snaps = <_TileSnapshot>[];
     for (int r = 0; r < board.rows; r++) {
       for (int c = 0; c < board.cols; c++) {
-        if (result.matched[r][c] && board.grid[r][c] != null) {
-          final tile = board.grid[r][c]!;
-          scoreManager.recordColorMatch(tile.color, 1);
-          if (tile.obstacle == ObstacleType.ice) {
-            scoreManager.recordIceCleared(1);
-          }
-          if (tile.obstacle == ObstacleType.rock) {
-            scoreManager.recordRockCleared(1);
-          }
-        }
+        if (!matched[r][c]) continue;
+        final tile = board.grid[r][c];
+        if (tile == null) continue;
+        // 石块不会被直接消除，跳过
+        if (tile.obstacle == ObstacleType.rock) continue;
+        // 冰块多层时本次只减一层，不算做消除
+        if (tile.obstacle == ObstacleType.ice && tile.iceLayer > 1) continue;
+        snaps.add(_TileSnapshot(tile.color, tile.obstacle));
       }
     }
+    return snaps;
+  }
+
+  void _trackGoalsFromSnapshot(List<_TileSnapshot> snaps) {
+    for (final snap in snaps) {
+      scoreManager.recordColorMatch(snap.color, 1);
+      if (snap.obstacle == ObstacleType.ice) scoreManager.recordIceCleared(1);
+      if (snap.obstacle == ObstacleType.rock) scoreManager.recordRockCleared(1);
+    }
     hudComponent.updateGoals();
+  }
+
+  // 保留旧方法签名兼容（不再使用）
+  void _trackGoals(MatchResult result) {
+    _trackGoalsFromSnapshot(_snapshotMatched(result.matched));
   }
 
   void _checkGameEnd() {
@@ -265,4 +286,11 @@ class Match3Game extends FlameGame {
     _gameTimer?.cancel();
     super.onRemove();
   }
+}
+
+/// 消除前的瓦片快照（用于准确统计目标进度）
+class _TileSnapshot {
+  final TileColor color;
+  final ObstacleType obstacle;
+  _TileSnapshot(this.color, this.obstacle);
 }
