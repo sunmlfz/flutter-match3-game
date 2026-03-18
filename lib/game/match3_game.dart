@@ -145,22 +145,20 @@ class Match3Game extends FlameGame {
     _trackGoals(result);
 
     boardComponent.animateMatch(result.matched, () {
-      // ★ 修复统计 Bug：在 removeMatched 前保存将被消除的瓦片快照
-      // 原来在 animateMatch 前调用 _trackGoals 时，冰块（iceLayer>1）会被漏算或多算
+      // ★ 在 removeMatched 前保存快照，确保统计正确
       final snapshot = _snapshotMatched(result.matched);
 
       board.removeMatched(result.matched);
       board.placeSpecials(result);
-      board.applyGravity();
+      // ★ 获取精确下落记录，传给 animateFall
+      final moves = board.applyGravity();
 
-      // 用快照更新目标统计（只计真正消除的格子）
       _trackGoalsFromSnapshot(snapshot);
 
-      boardComponent.animateFall(() {
+      boardComponent.animateFall(moves, () {
         board.fillEmpty();
         boardComponent.refresh();
 
-        // 继续连锁
         Future.delayed(const Duration(milliseconds: 100), () {
           _processCascade(cascadeLevel + 1);
         });

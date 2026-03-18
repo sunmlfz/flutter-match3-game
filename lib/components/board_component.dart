@@ -3,7 +3,7 @@ import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart' show FlameGame;
 import 'package:flutter/material.dart' show Canvas, Color, Colors, Paint, PaintingStyle, RRect, Radius, Rect, Offset, VoidCallback;
-import '../game/board.dart';
+import '../game/board.dart' show Board, GravityMove;
 import '../game/score_manager.dart';
 import '../utils/constants.dart';
 import 'tile_component.dart';
@@ -100,26 +100,40 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameRef<Fla
     final comp = tileComponents[row][col];
 
     if (_selectedTile == null) {
-      // 选中
+      // 第一次选中
       _selectedTile = comp;
       _selectedRow = row;
       _selectedCol = col;
       comp.select();
     } else {
-      // 尝试交换
       final r1 = _selectedRow!;
       final c1 = _selectedCol!;
-      _selectedTile!.deselect();
-      _selectedTile = null;
 
       if (r1 == row && c1 == col) {
         // 点同一个，取消选中
+        _selectedTile!.deselect();
+        _selectedTile = null;
+        _selectedRow = null;
+        _selectedCol = null;
         return;
       }
 
-      onSwap(r1, c1, row, col);
+      // 修复 Bug2：非相邻格子不触发交换，改为重新选中
+      if (!board.areAdjacent(r1, c1, row, col)) {
+        _selectedTile!.deselect();
+        _selectedTile = comp;
+        _selectedRow = row;
+        _selectedCol = col;
+        comp.select();
+        return;
+      }
+
+      // 相邻才尝试交换
+      _selectedTile!.deselect();
+      _selectedTile = null;
       _selectedRow = null;
       _selectedCol = null;
+      onSwap(r1, c1, row, col);
     }
   }
 
@@ -162,8 +176,15 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameRef<Fla
     tileComponents[r2][c2].shake();
   }
 
-  /// 消除动画
+  /// 消除动画（加 guard 防止 onComplete 重复调用）
   void animateMatch(List<List<bool>> matched, VoidCallback onComplete) {
+    bool _completed = false;
+    void safeComplete() {
+      if (_completed) return;
+      _completed = true;
+      onComplete();
+    }
+
     int total = 0;
     int done = 0;
 
@@ -174,7 +195,7 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameRef<Fla
     }
 
     if (total == 0) {
-      onComplete();
+      safeComplete();
       return;
     }
 
@@ -183,45 +204,61 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameRef<Fla
         if (matched[r][c]) {
           tileComponents[r][c].playMatchAnimation(() {
             done++;
-            if (done == total) onComplete();
+            if (done >= total) safeComplete();
           });
         }
       }
     }
+
+    // 超时兜底
+    Future.delayed(const Duration(milliseconds: 500), safeComplete);
   }
 
-  /// 下落动画
-  /// 修复：原来用 comp.tile != tile 引用比较不可靠，改为直接比较视觉位置与目标位置
-  /// 用 epsilon 避免浮点误差导致误判，同时加安全超时防止卡死
-  void animateFall(VoidCallback onComplete) {
-    const epsilon = 2.0; // 位置误差容忍（px）
-    int moving = 0;
-    int done = 0;
-
-    for (int r = 0; r < board.rows; r++) {
-      for (int c = 0; c < board.cols; c++) {
-        final comp = tileComponents[r][c];
-        final targetPos = _getTilePosition(r, c);
-        final dx = (comp.position.x - targetPos.x).abs();
-        final dy = (comp.position.y - targetPos.y).abs();
-        if (dx > epsilon || dy > epsilon) {
-          moving++;
-          comp.playFallAnimation(targetPos, () {
-            done++;
-            if (done >= moving) onComplete();
-          });
-        }
-      }
+  /// 下落动画（修复版）
+  /// 根据 board.applyGravity() 返回的精确移动记录来动画，不依赖组件位置比较
+  /// 同时更新 tileComponents 映射，保持组件与格子的正确对应关系
+  void animateFall(List<GravityMove> moves, VoidCallback onComplete) {
+    if (moves.isEmpty) {
+      onComplete();
+      return;
     }
 
-    if (moving == 0) {
+    // 防止 onComplete 被重复调用（超时 + 正常完成都可能触发）
+    bool _completed = false;
+    void safeComplete() {
+      if (_completed) return;
+      _completed = true;
       onComplete();
-    } else {
-      // 安全超时：若动画回调 600ms 内未全部触发，强制继续（防止游戏卡死）
-      Future.delayed(const Duration(milliseconds: 600), () {
-        if (done < moving) onComplete();
+    }
+
+    // 先按照移动记录更新 tileComponents 映射（从下往上，避免覆盖）
+    // moves 已按 fromRow 降序排列（applyGravity 从底部扫描）
+    final sortedMoves = List<GravityMove>.from(moves)
+      ..sort((a, b) => b.fromRow.compareTo(a.fromRow));
+
+    for (final move in sortedMoves) {
+      final comp = tileComponents[move.fromRow][move.col];
+      tileComponents[move.toRow][move.col] = comp;
+      // fromRow 的格子将由 fillEmpty 填充新 tile，暂置 null guard
+      if (move.fromRow != move.toRow) {
+        tileComponents[move.fromRow][move.col] = comp; // 暂时保留，refresh 会修正
+      }
+      comp.row = move.toRow;
+    }
+
+    int total = moves.length;
+    int done = 0;
+    for (final move in moves) {
+      final comp = tileComponents[move.toRow][move.col];
+      final targetPos = _getTilePosition(move.toRow, move.col);
+      comp.playFallAnimation(targetPos, () {
+        done++;
+        if (done >= total) safeComplete();
       });
     }
+
+    // 超时兜底（400ms），防止某帧回调未触发导致卡死
+    Future.delayed(const Duration(milliseconds: 400), safeComplete);
   }
 
   /// 重排动画

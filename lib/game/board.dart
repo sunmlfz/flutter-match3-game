@@ -3,13 +3,20 @@ import 'tile.dart';
 import '../utils/constants.dart';
 
 /// 内部辅助：一段连续匹配的描述
-/// [rc] = 行（横段）或列（纵段），[a,b) = 范围（另一轴），[isH] = 是否横向
 class _MatchSeg {
   final int rc;
   final int a;
   final int b;
   final bool isH;
   _MatchSeg(this.rc, this.a, this.b, this.isH);
+}
+
+/// 重力下落记录：tile 从 [fromRow][col] 移动到 [toRow][col]
+class GravityMove {
+  final int fromRow;
+  final int col;
+  final int toRow;
+  GravityMove(this.fromRow, this.col, this.toRow);
 }
 
 /// 消除结果
@@ -402,8 +409,9 @@ class Board {
   }
 
   /// 元素下落填补空位
-  List<List<int>> applyGravity() {
-    final movedPositions = <List<int>>[];
+  /// 返回移动记录 List<GravityMove>（fromRow, col, toRow）供动画使用
+  List<GravityMove> applyGravity() {
+    final moves = <GravityMove>[];
     for (int c = 0; c < cols; c++) {
       int emptyRow = rows - 1;
       for (int r = rows - 1; r >= 0; r--) {
@@ -411,13 +419,13 @@ class Board {
           if (r != emptyRow) {
             grid[emptyRow][c] = grid[r][c];
             grid[r][c] = null;
-            movedPositions.add([emptyRow, c]);
+            moves.add(GravityMove(r, c, emptyRow));
           }
           emptyRow--;
         }
       }
     }
-    return movedPositions;
+    return moves;
   }
 
   /// 用新元素补充空位（从顶部生成）
