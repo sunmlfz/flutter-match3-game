@@ -84,8 +84,9 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameRef<Fla
   @override
   void onTapDown(TapDownEvent event) {
     final localPos = event.localPosition;
-    final row = ((localPos.y - GameConstants.boardPadding) / GameConstants.tileSize).floor();
-    final col = ((localPos.x - GameConstants.boardPadding) / GameConstants.tileSize).floor();
+    // 修复：用自适应 tileSize 做坐标映射，不能用常量
+    final row = ((localPos.y - GameConstants.boardPadding) / _adaptiveTileSize).floor();
+    final col = ((localPos.x - GameConstants.boardPadding) / _adaptiveTileSize).floor();
 
     if (row < 0 || row >= board.rows || col < 0 || col >= board.cols) return;
 
