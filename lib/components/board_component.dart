@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart' show FlameGame;
-import 'package:flutter/material.dart' show Canvas, Color, Colors, Paint, PaintingStyle, RRect, Radius, Rect, Offset, VoidCallback;
+import 'package:flutter/material.dart' show Canvas, Color, Colors, Paint, PaintingStyle, RRect, Radius, Rect, Offset, VoidCallback, LinearGradient, Alignment;
 import '../game/board.dart' show Board, GravityMove;
 import '../game/score_manager.dart';
 import '../utils/constants.dart';
@@ -264,37 +264,45 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameRef<Fla
 
   @override
   void render(Canvas canvas) {
-    // 棋盘背景
-    final bgPaint = Paint()..color = GameConstants.boardBackgroundColor;
+    // 棋盘背景（深色圆角卡片）
+    final bgPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF1A1040), Color(0xFF0F0C29)],
+      ).createShader(Rect.fromLTWH(0, 0, size.x, size.y));
     canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, 0, size.x, size.y),
-        const Radius.circular(16),
-      ),
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.x, size.y),
+          const Radius.circular(20)),
       bgPaint,
     );
 
-    // 网格线
+    // 边框光晕
+    final borderPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.08)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, size.x, size.y),
+          const Radius.circular(20)),
+      borderPaint,
+    );
+
+    // 网格线（极淡）
     final gridPaint = Paint()
-      ..color = Colors.white.withOpacity(0.05)
+      ..color = Colors.white.withValues(alpha: 0.04)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.5;
 
     for (int r = 0; r <= board.rows; r++) {
-      final y = GameConstants.boardPadding + r * GameConstants.tileSize;
-      canvas.drawLine(
-        Offset(GameConstants.boardPadding, y),
-        Offset(size.x - GameConstants.boardPadding, y),
-        gridPaint,
-      );
+      final y = GameConstants.boardPadding + r * _adaptiveTileSize;
+      canvas.drawLine(Offset(GameConstants.boardPadding, y),
+          Offset(size.x - GameConstants.boardPadding, y), gridPaint);
     }
     for (int c = 0; c <= board.cols; c++) {
-      final x = GameConstants.boardPadding + c * GameConstants.tileSize;
-      canvas.drawLine(
-        Offset(x, GameConstants.boardPadding),
-        Offset(x, size.y - GameConstants.boardPadding),
-        gridPaint,
-      );
+      final x = GameConstants.boardPadding + c * _adaptiveTileSize;
+      canvas.drawLine(Offset(x, GameConstants.boardPadding),
+          Offset(x, size.y - GameConstants.boardPadding), gridPaint);
     }
 
     super.render(canvas);

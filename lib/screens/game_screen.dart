@@ -80,24 +80,38 @@ class _GameScreenState extends State<GameScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: GameConstants.backgroundColor,
-      body: Column(
-        children: [
-          // Flame 游戏区域
-          Expanded(
-            child: GameWidget(game: _game),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF0F0C29), Color(0xFF302B63)],
           ),
-
-          // 底部道具栏
-          _buildPowerBar(),
-        ],
+        ),
+        child: Column(
+          children: [
+            Expanded(child: GameWidget(game: _game)),
+            _buildPowerBar(),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildPowerBar() {
     return Container(
-      color: GameConstants.hudColor,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF24243E), Color(0xFF302B63)],
+        ),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 12,
+              offset: const Offset(0, -4))
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
@@ -105,6 +119,8 @@ class _GameScreenState extends State<GameScreen> {
             emoji: '🔨',
             label: '锤子',
             count: _hammerCount,
+            gradient: const LinearGradient(
+                colors: [Color(0xFFFF6B6B), Color(0xFFFF8E53)]),
             onTap: _hammerCount > 0
                 ? () {
                     setState(() => _hammerCount--);
@@ -116,6 +132,8 @@ class _GameScreenState extends State<GameScreen> {
             emoji: '💣',
             label: '炸弹',
             count: _bombCount,
+            gradient: const LinearGradient(
+                colors: [Color(0xFF6C5CE7), Color(0xFFA29BFE)]),
             onTap: _bombCount > 0
                 ? () {
                     setState(() => _bombCount--);
@@ -127,6 +145,8 @@ class _GameScreenState extends State<GameScreen> {
             emoji: '🔄',
             label: '重排',
             count: _reshuffleCount,
+            gradient: const LinearGradient(
+                colors: [Color(0xFF00B894), Color(0xFF00CEC9)]),
             onTap: _reshuffleCount > 0
                 ? () {
                     setState(() => _reshuffleCount--);
@@ -144,12 +164,14 @@ class _PowerButton extends StatelessWidget {
   final String emoji;
   final String label;
   final int count;
+  final LinearGradient gradient;
   final VoidCallback? onTap;
 
   const _PowerButton({
     required this.emoji,
     required this.label,
     required this.count,
+    required this.gradient,
     this.onTap,
   });
 
@@ -158,33 +180,35 @@ class _PowerButton extends StatelessWidget {
     final enabled = count > 0 && onTap != null;
     return GestureDetector(
       onTap: onTap,
-      child: Opacity(
-        opacity: enabled ? 1.0 : 0.4,
+      child: AnimatedOpacity(
+        opacity: enabled ? 1.0 : 0.35,
+        duration: const Duration(milliseconds: 200),
         child: Container(
-          width: 72,
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+          width: 80,
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
           decoration: BoxDecoration(
-            color: enabled
-                ? GameConstants.accentColor.withOpacity(0.8)
-                : Colors.grey.shade700,
-            borderRadius: BorderRadius.circular(12),
+            gradient: enabled ? gradient : const LinearGradient(
+                colors: [Color(0xFF555555), Color(0xFF444444)]),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: enabled
+                ? [BoxShadow(
+                    color: gradient.colors.first.withValues(alpha: 0.4),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4))]
+                : [],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 24)),
-              Text(
-                label,
-                style: const TextStyle(color: Colors.white70, fontSize: 10),
-              ),
-              Text(
-                '×$count',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              Text(emoji, style: const TextStyle(fontSize: 26)),
+              const SizedBox(height: 2),
+              Text(label,
+                  style: const TextStyle(color: Colors.white70, fontSize: 10)),
+              Text('×$count',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold)),
             ],
           ),
         ),

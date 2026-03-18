@@ -24,40 +24,41 @@ class GameConstants {
   // 关卡数量
   static const int totalLevels = 5;
 
-  // 元素颜色
+  // 水果背景色（柔和渐变底色）
   static const Map<int, Color> tileColors = {
-    0: Color(0xFFE74C3C), // 红
-    1: Color(0xFF3498DB), // 蓝
-    2: Color(0xFF2ECC71), // 绿
-    3: Color(0xFFF39C12), // 黄
-    4: Color(0xFF9B59B6), // 紫
-    5: Color(0xFF1ABC9C), // 青
+    0: Color(0xFFFF6B6B), // 草莓红
+    1: Color(0xFFFF9F43), // 橙子橙
+    2: Color(0xFF54A0FF), // 蓝莓蓝
+    3: Color(0xFF5F27CD), // 葡萄紫
+    4: Color(0xFF1DD1A1), // 猕猴桃绿
+    5: Color(0xFFFECA57), // 柠檬黄
   };
 
-  // 元素图标
+  // 水果 emoji
   static const Map<int, String> tileEmojis = {
-    0: '🔴',
-    1: '🔵',
-    2: '🟢',
-    3: '🟡',
-    4: '🟣',
-    5: '🩵',
+    0: '🍓', // 草莓
+    1: '🍊', // 橙子
+    2: '🫐', // 蓝莓
+    3: '🍇', // 葡萄
+    4: '🥝', // 猕猴桃
+    5: '🍋', // 柠檬
   };
 
   // 特殊元素颜色
   static const Color lineBreakerColor = Color(0xFFFFD700);
-  static const Color bombColor = Color(0xFFFF6B35);
-  static const Color colorBombColor = Color(0xFFFFFFFF);
+  static const Color bombColor = Color(0xFFFF4757);
+  static const Color colorBombColor = Color(0xFFA29BFE);
 
   // 障碍物颜色
-  static const Color iceColor = Color(0xFFADD8E6);
-  static const Color rockColor = Color(0xFF808080);
-  static const Color chainColor = Color(0xFF8B4513);
-  static const Color slimeColor = Color(0xFF7CFC00);
+  static const Color iceColor = Color(0xFFB2EBF2);
+  static const Color rockColor = Color(0xFF78909C);
+  static const Color chainColor = Color(0xFF795548);
+  static const Color slimeColor = Color(0xFF69F0AE);
 
-  // UI 颜色
-  static const Color backgroundColor = Color(0xFF1A1A2E);
-  static const Color boardBackgroundColor = Color(0xFF16213E);
-  static const Color hudColor = Color(0xFF0F3460);
-  static const Color accentColor = Color(0xFFE94560);
+  // UI 颜色（清新渐变风）
+  static const Color backgroundColor = Color(0xFF0F0C29);
+  static const Color boardBackgroundColor = Color(0xFF1A1040);
+  static const Color hudColor = Color(0xFF24243E);
+  static const Color accentColor = Color(0xFFFF6B6B);
+  static const Color accentColor2 = Color(0xFFFFBE76);
 }
