@@ -273,4 +273,13 @@ class TileComponent extends PositionComponent {
     scale = Vector2.all(1.0);
     _isSelected = false;
   }
+
+  /// 清除所有进行中的动画效果（refresh 前调用，避免残留效果干扰位置）
+  void clearEffects() {
+    // 移除所有 Effect 子组件，防止残留动画覆盖 snap 后的位置
+    final effects = children.whereType<Effect>().toList();
+    for (final e in effects) {
+      e.removeFromParent();
+    }
+  }
 }

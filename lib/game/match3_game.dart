@@ -145,23 +145,23 @@ class Match3Game extends FlameGame {
     _trackGoals(result);
 
     boardComponent.animateMatch(result.matched, () {
-      // ★ 在 removeMatched 前保存快照，确保统计正确
+      // 消除动画结束后，一次性完成所有 board 状态更新
       final snapshot = _snapshotMatched(result.matched);
-
       board.removeMatched(result.matched);
       board.placeSpecials(result);
-      // ★ 获取精确下落记录，传给 animateFall
-      final moves = board.applyGravity();
-
+      board.applyGravity();
       _trackGoalsFromSnapshot(snapshot);
+      board.fillEmpty();
 
-      boardComponent.animateFall(moves, () {
-        board.fillEmpty();
-        boardComponent.refresh();
+      // refresh() 统一重置所有组件位置：
+      // - 已有 tile 的格子 snap 到正确位置
+      // - isNew=true 的格子触发从上方落入动画
+      // 不再追踪组件引用，彻底消除重叠 Bug
+      boardComponent.refresh();
 
-        Future.delayed(const Duration(milliseconds: 100), () {
-          _processCascade(cascadeLevel + 1);
-        });
+      // 等新 tile 的 spawn 动画播完再继续连锁（spawn 动画约 300ms）
+      Future.delayed(const Duration(milliseconds: 350), () {
+        _processCascade(cascadeLevel + 1);
       });
     });
   }

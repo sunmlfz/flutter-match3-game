@@ -214,51 +214,10 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameRef<Fla
     Future.delayed(const Duration(milliseconds: 500), safeComplete);
   }
 
-  /// 下落动画（修复版）
-  /// 根据 board.applyGravity() 返回的精确移动记录来动画，不依赖组件位置比较
-  /// 同时更新 tileComponents 映射，保持组件与格子的正确对应关系
+  /// animateFall 已废弃，board 状态更新后直接由 refresh() + spawn 动画处理
+  /// 保留签名兼容，直接透传
   void animateFall(List<GravityMove> moves, VoidCallback onComplete) {
-    if (moves.isEmpty) {
-      onComplete();
-      return;
-    }
-
-    // 防止 onComplete 被重复调用（超时 + 正常完成都可能触发）
-    bool _completed = false;
-    void safeComplete() {
-      if (_completed) return;
-      _completed = true;
-      onComplete();
-    }
-
-    // 先按照移动记录更新 tileComponents 映射（从下往上，避免覆盖）
-    // moves 已按 fromRow 降序排列（applyGravity 从底部扫描）
-    final sortedMoves = List<GravityMove>.from(moves)
-      ..sort((a, b) => b.fromRow.compareTo(a.fromRow));
-
-    for (final move in sortedMoves) {
-      final comp = tileComponents[move.fromRow][move.col];
-      tileComponents[move.toRow][move.col] = comp;
-      // fromRow 的格子将由 fillEmpty 填充新 tile，暂置 null guard
-      if (move.fromRow != move.toRow) {
-        tileComponents[move.fromRow][move.col] = comp; // 暂时保留，refresh 会修正
-      }
-      comp.row = move.toRow;
-    }
-
-    int total = moves.length;
-    int done = 0;
-    for (final move in moves) {
-      final comp = tileComponents[move.toRow][move.col];
-      final targetPos = _getTilePosition(move.toRow, move.col);
-      comp.playFallAnimation(targetPos, () {
-        done++;
-        if (done >= total) safeComplete();
-      });
-    }
-
-    // 超时兜底（400ms），防止某帧回调未触发导致卡死
-    Future.delayed(const Duration(milliseconds: 400), safeComplete);
+    onComplete();
   }
 
   /// 重排动画
@@ -274,12 +233,18 @@ class BoardComponent extends PositionComponent with TapCallbacks, HasGameRef<Fla
       for (int c = 0; c < board.cols; c++) {
         final tile = board.get(r, c);
         final comp = tileComponents[r][c];
+
+        // 先清除所有进行中的动画效果，避免残留动画干扰位置
+        comp.clearEffects();
+
         comp.updateTile(tile);
         comp.row = r;
         comp.col = c;
-        comp.position = _getTilePosition(r, c);
+        // 强制 snap 到正确格子位置（彻底消除重叠）
+        comp.position = _getTilePosition(r, c).clone();
+        comp.scale = Vector2.all(1.0);
 
-        // 新生成的元素播放入场动画
+        // 新生成的 tile 从正上方落入（spawn 动画）
         if (tile?.isNew == true) {
           comp.playSpawnAnimation();
           tile?.isNew = false;
