@@ -2,6 +2,16 @@ import 'dart:math';
 import 'tile.dart';
 import '../utils/constants.dart';
 
+/// 内部辅助：一段连续匹配的描述
+/// [rc] = 行（横段）或列（纵段），[a,b) = 范围（另一轴），[isH] = 是否横向
+class _MatchSeg {
+  final int rc;
+  final int a;
+  final int b;
+  final bool isH;
+  _MatchSeg(this.rc, this.a, this.b, this.isH);
+}
+
 /// 消除结果
 class MatchResult {
   final List<List<bool>> matched;  // 哪些位置被消除
@@ -119,22 +129,25 @@ class Board {
 
   // ─── 匹配检测 ─────────────────────────────────────────────
 
-  /// 查找所有匹配（≥3连）
+  /// 查找所有匹配（≥3连），并检测 T/L/十字形生成炸弹
   MatchResult findMatches({int cascadeLevel = 0}) {
     final matched = List.generate(rows, (_) => List.filled(cols, false));
     final newSpecials = <SpecialType>[];
     final specialPositions = <List<int>>[];
     int totalScore = 0;
 
-    // 横向检测
+    // 记录每个位置所在横向/纵向匹配段的长度（0=无匹配）
+    final hLen = List.generate(rows, (_) => List.filled(cols, 0));
+    final vLen = List.generate(rows, (_) => List.filled(cols, 0));
+
+    // ── 第一遍：收集横向匹配 ────────────────────────────────
+    // 存储每段：{row, colStart, colEnd, len}
+    final hSegments = <_MatchSeg>[];
     for (int r = 0; r < rows; r++) {
       int start = 0;
       while (start < cols) {
         final tile = grid[r][start];
-        if (tile == null || tile.isSpecial) {
-          start++;
-          continue;
-        }
+        if (tile == null || tile.isSpecial) { start++; continue; }
         int end = start + 1;
         while (end < cols &&
             grid[r][end] != null &&
@@ -144,26 +157,24 @@ class Board {
         }
         final len = end - start;
         if (len >= 3) {
+          hSegments.add(_MatchSeg(r, start, end, true));
           for (int c = start; c < end; c++) {
             matched[r][c] = true;
+            hLen[r][c] = len;
           }
           totalScore += _calcScore(len, cascadeLevel);
-          _checkSpecialGeneration(
-              matched, r, start, end, true, len, newSpecials, specialPositions);
         }
         start = end;
       }
     }
 
-    // 纵向检测
+    // ── 第二遍：收集纵向匹配 ────────────────────────────────
+    final vSegments = <_MatchSeg>[];
     for (int c = 0; c < cols; c++) {
       int start = 0;
       while (start < rows) {
         final tile = grid[start][c];
-        if (tile == null || tile.isSpecial) {
-          start++;
-          continue;
-        }
+        if (tile == null || tile.isSpecial) { start++; continue; }
         int end = start + 1;
         while (end < rows &&
             grid[end][c] != null &&
@@ -173,14 +184,55 @@ class Board {
         }
         final len = end - start;
         if (len >= 3) {
+          vSegments.add(_MatchSeg(start, c, end, false));
           for (int r = start; r < end; r++) {
             matched[r][c] = true;
+            vLen[r][c] = len;
           }
           totalScore += _calcScore(len, cascadeLevel);
-          _checkSpecialGeneration(
-              matched, start, c, start + len, false, len, newSpecials, specialPositions);
         }
         start = end;
+      }
+    }
+
+    // ── 第三遍：检测交叉点（T/L/十字）→ 生成炸弹 ────────────
+    // 同一位置 hLen ≥ 3 AND vLen ≥ 3 → T/L/+ 形，在交叉点生成炸弹
+    final crossPoints = <List<int>>{};
+    for (int r = 0; r < rows; r++) {
+      for (int c = 0; c < cols; c++) {
+        if (hLen[r][c] >= 3 && vLen[r][c] >= 3) {
+          crossPoints.add([r, c]);
+        }
+      }
+    }
+    for (final pos in crossPoints) {
+      newSpecials.add(SpecialType.bomb);
+      specialPositions.add(pos);
+    }
+
+    // ── 非交叉段：检测 4连/5连 生成直线/彩虹 ────────────────
+    // 对每个匹配段，若段中没有交叉点，才生成对应直线/彩虹特殊元素
+    for (final seg in hSegments) {
+      // 该段是否有交叉点
+      bool hasCross = false;
+      for (int c = seg.a; c < seg.b; c++) {
+        if (vLen[seg.rc][c] >= 3) { hasCross = true; break; }
+      }
+      if (!hasCross) {
+        _checkSpecialGeneration(
+            matched, seg.rc, seg.a, seg.b, true, seg.b - seg.a,
+            newSpecials, specialPositions);
+      }
+    }
+    for (final seg in vSegments) {
+      bool hasCross = false;
+      for (int r = seg.a; r < seg.b; r++) {
+        if (hLen[r][seg.rc] >= 3) { hasCross = true; break; }
+      }
+      if (!hasCross) {
+        _checkSpecialGeneration(
+            matched, seg.a, seg.rc, seg.b, false, seg.b - seg.a,
+            newSpecials, specialPositions);
       }
     }
 

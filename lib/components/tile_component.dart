@@ -1,7 +1,24 @@
-import 'dart:ui';
+import 'dart:ui' as ui;
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
-import 'package:flutter/material.dart' show Colors, Color, BorderRadius, RRect;
+import 'package:flutter/material.dart'
+    show
+        Colors,
+        Color,
+        BorderRadius,
+        RRect,
+        Radius,
+        Rect,
+        LinearGradient,
+        SweepGradient,
+        Alignment,
+        Curves,
+        Canvas,
+        Paint,
+        PaintingStyle,
+        Offset,
+        Gradient,
+        VoidCallback;
 import '../game/tile.dart';
 import '../utils/constants.dart';
 
